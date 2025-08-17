@@ -57,7 +57,7 @@ export function TowerPanel() {
                 <div className="avatar">{h.avatarUrl ? <img src={h.avatarUrl} alt={h.name} /> : '🛡️'}</div>
                 <div>
                   <div style={{fontWeight:700}}>{h.name} <span style={{opacity:0.7, fontWeight:400}}>Lv {h.level}</span></div>
-                  <div style={{opacity:0.8, fontSize:12}}>{h.classPrimary} / {h.classSecondary}</div>
+                  <div style={{opacity:0.8, fontSize:12}}>{h.classPrimary} / {h.classSecondary} • {h.row ?? 'Front'}</div>
                   <div className="statbar" style={{marginTop:6}}><span style={{width: `${Math.max(0, Math.min(100, ((h.currentHp ?? h.stats.vitality)/ (h.stats.vitality))*100))}%`}} /></div>
                 </div>
               </div>
@@ -67,6 +67,11 @@ export function TowerPanel() {
       </div>
       <div className="grid" style={{gap:8}}>
         <h3>Battle Log</h3>
+        <div style={{display:'flex', gap:8, marginBottom:6}}>
+          <span className="tag">Turns: {tower.analytics?.turnsThisFight ?? 0}</span>
+          <span className="tag">DPS avg: {tower.analytics?.dpsAvg ?? 0}</span>
+          <span className="tag">Floors cleared: {tower.analytics?.floorsCleared ?? 0}</span>
+        </div>
         <div ref={logRef} className="battle-log">
           {tower.battleLog.map(e => (
             <div key={e.id} style={{opacity:0.95}}>{e.text}</div>

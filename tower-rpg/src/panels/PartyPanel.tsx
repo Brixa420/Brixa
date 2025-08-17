@@ -78,6 +78,20 @@ export function PartyPanel({ mode }: { mode?: 'onboarding' }) {
                 </select>
               </div>
             </div>
+            <div className="grid cols-2" style={{marginTop:12}}>
+              <div className="field">
+                <label>Formation Row</label>
+                <select value={h.row ?? 'Front'} onChange={e=>useGameStore.getState().setRow?.(h.id, e.target.value as any)}>
+                  <option>Front</option>
+                  <option>Back</option>
+                </select>
+              </div>
+              <div className="field">
+                <label>Bonuses</label>
+                <div className="tag">Front: +10% Power, -5% Defense</div>
+                <div className="tag" style={{marginTop:6}}>Back: +10% Magic, -5% Power</div>
+              </div>
+            </div>
             <div style={{marginTop:8, fontSize:12, opacity:0.9}}>
               Power {h.stats.power} • Defense {h.stats.defense} • Vitality {h.stats.vitality}
             </div>
@@ -87,4 +101,3 @@ export function PartyPanel({ mode }: { mode?: 'onboarding' }) {
     </div>
   )
 }
-

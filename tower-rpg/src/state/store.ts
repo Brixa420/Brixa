@@ -131,7 +131,7 @@ export const useGameStore = create<GameState>()(devtools((set, get) => ({
   inventory: { gear: [], gems: [], materials: [], potions: { revive: 0 } },
   recipes: [],
   shop: { items: [] },
-  tower: { monsters: [], battleLog: [], turn: 1, inBattle: false },
+  tower: { monsters: [], battleLog: [], turn: 1, inBattle: false, analytics: { totalDamageDealt: 0, turnsThisFight: 0, lastFightStartMs: null, floorsCleared: 0, dpsAvg: 0 } },
 
   initialize: () => set(produce<GameState>(state => {
     if (state.recipes.length === 0) state.recipes = generateInitialRecipes()
@@ -142,7 +142,7 @@ export const useGameStore = create<GameState>()(devtools((set, get) => ({
       // default onboarding party
       state.heroes = new Array(4).fill(0).map((_,i) => {
         const stats = baseStats(i===0?'Mage':'Warrior', i===0?'Artificer':'Ranger')
-        return { id: uuid(), name: i===0?'Luna':'Hero '+(i+1), classPrimary: i===0?'Mage':'Warrior', classSecondary: i===0?'Artificer':'Ranger', level: 1, experience: 0, stats, currentHp: stats.vitality, equipment: {} }
+        return { id: uuid(), name: i===0?'Luna':'Hero '+(i+1), classPrimary: i===0?'Mage':'Warrior', classSecondary: i===0?'Artificer':'Ranger', level: 1, experience: 0, stats, currentHp: stats.vitality, row: i<2?'Front':'Back', equipment: {} }
       })
       // Luna's Moonstone Amulet pre-equipped via virtual bonus handled in computeHeroStats
     }
@@ -166,6 +166,7 @@ export const useGameStore = create<GameState>()(devtools((set, get) => ({
   setUsername: (name) => set(produce<GameState>(state => { state.ui.username = name })),
   toggleAutoPlay: () => set(produce<GameState>(state => { state.ui.autoPlay = !state.ui.autoPlay })),
   uploadAvatar: (heroId, url) => set(produce<GameState>(state => { const h=state.heroes.find(h=>h.id===heroId); if (h) h.avatarUrl=url })),
+  setRow: (heroId, row) => set(produce<GameState>(state => { const h=state.heroes.find(h=>h.id===heroId); if (h) h.row = row })),
 
   equipGear: (heroId, gearId) => set(produce<GameState>(state => {
     const hero = state.heroes.find(h=>h.id===heroId); const gear = state.inventory.gear.find(g=>g.id===gearId)
@@ -208,6 +209,9 @@ export const useGameStore = create<GameState>()(devtools((set, get) => ({
     state.tower.battleLog = []
     state.tower.turn = 1
     state.tower.inBattle = true
+    state.tower.analytics.turnsThisFight = 0
+    state.tower.analytics.totalDamageDealt = 0
+    state.tower.analytics.lastFightStartMs = Date.now()
   })),
 
   nextTurn: () => set(produce<GameState>(state => {
@@ -219,7 +223,14 @@ export const useGameStore = create<GameState>()(devtools((set, get) => ({
     let totalPartyDamage = 0
     for (const hero of state.heroes) {
       if ((hero.currentHp ?? hero.stats.vitality) <= 0) { continue }
-      const s = computeHeroStats(hero, state)
+      let s = computeHeroStats(hero, state)
+      // formation: front gets +10% power/-5% defense; back +10% magic/-5% power
+      if (hero.row === 'Front') { s = { ...s, power: Math.floor(s.power*1.1), defense: Math.max(0, Math.floor(s.defense*0.95)) } }
+      if (hero.row === 'Back') { s = { ...s, magic: Math.floor(s.magic*1.1), power: Math.max(0, Math.floor(s.power*0.95)) } }
+      // simple synergy: Mage+Artificer -> +15% critRate; Warrior+Paladin -> +10% defense teamwide applied per attacker
+      const classes = [hero.classPrimary, hero.classSecondary].join('|')
+      if (classes.includes('Mage') && classes.includes('Artificer')) s = { ...s, critRate: s.critRate + 15 }
+      if (classes.includes('Warrior') && classes.includes('Paladin')) s = { ...s, defense: s.defense + 10 }
       let dmg = Math.max(1, s.power + Math.floor(s.magic/2) - Math.floor(monster.stats.defense/3))
       const crit = Math.random()*100 < s.critRate
       if (crit) dmg = Math.floor(dmg * (1 + s.critDamage/100))
@@ -230,11 +241,18 @@ export const useGameStore = create<GameState>()(devtools((set, get) => ({
         events.push({ id: uuid(), turn, text: `${monster.name} is stunned and misses its turn!` })
       }
     }
+    state.tower.analytics.totalDamageDealt += totalPartyDamage
     monster.stats.vitality -= totalPartyDamage
     if (monster.stats.vitality <= 0) {
       events.push({ id: uuid(), turn, text: `${monster.name} defeated!` })
       state.tower.inBattle = false
       state.ui.floor += 1
+      state.tower.analytics.floorsCleared += 1
+      if (state.tower.analytics.lastFightStartMs) {
+        const secs = Math.max(1, Math.floor((Date.now()-state.tower.analytics.lastFightStartMs)/1000))
+        const dps = state.tower.analytics.totalDamageDealt / secs
+        state.tower.analytics.dpsAvg = Math.round((state.tower.analytics.dpsAvg*0.7) + (dps*0.3))
+      }
       const isBoss = state.ui.floor % 10 === 1
       get().generateLoot(isBoss)
     } else {
@@ -267,6 +285,7 @@ export const useGameStore = create<GameState>()(devtools((set, get) => ({
         for (const h of state.heroes) h.currentHp = h.stats.vitality
       } else {
         state.tower.turn += 1
+        state.tower.analytics.turnsThisFight += 1
       }
     }
     state.tower.battleLog.push(...events)

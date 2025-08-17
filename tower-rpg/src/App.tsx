@@ -7,6 +7,7 @@ import { GearPanel } from './panels/GearPanel'
 import { ForgePanel } from './panels/ForgePanel'
 import { SettingsPanel } from './panels/SettingsPanel'
 import { ShopPanel } from './panels/ShopPanel'
+import { BrixaPanel } from './panels/BrixaPanel'
 
 function App() {
   const ui = useGameStore(s => s.ui)
@@ -22,6 +23,7 @@ function App() {
     { key: 'forge', label: 'Forge', node: <ForgePanel /> },
     { key: 'shop', label: 'Shop', node: <ShopPanel /> },
     { key: 'settings', label: 'Settings', node: <SettingsPanel /> },
+    { key: 'brixa', label: 'Brixa', node: <BrixaPanel /> },
   ] as const
 
   if (!ui.username) {

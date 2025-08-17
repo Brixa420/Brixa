@@ -57,7 +57,7 @@ export function GearPanel() {
           <h3>Inventory</h3>
           <div className="grid cols-2" style={{marginTop:8}}>
             {inv.gear.map(g => (
-              <div key={g.id} className="item-card">
+              <div key={g.id} className="item-card" title={`${g.name} • ${g.slot} • ${g.rarity}`}>
                 <div className={`item-icon ${rarityClass(g.rarity)}`}>🛡️</div>
                 <div>
                   <div style={{fontWeight:700}}>{g.name}</div>
@@ -77,7 +77,7 @@ export function GearPanel() {
           <h3 style={{marginTop:16}}>Gems</h3>
           <div className="grid cols-3" style={{marginTop:8}}>
             {inv.gems.map((gem: Gem) => (
-              <div key={gem.id} className="item-card">
+              <div key={gem.id} className="item-card" title={`${gem.name} • ${gem.type} +${gem.value}`}>
                 <div className={`item-icon ${rarityClass(gem.rarity)}`}>💎</div>
                 <div>
                   <div style={{fontWeight:700}}>{gem.name}</div>

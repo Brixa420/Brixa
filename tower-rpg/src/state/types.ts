@@ -47,6 +47,7 @@ export interface Hero {
   experience: number
   stats: Stats
   currentHp?: number
+  row?: 'Front' | 'Back'
   avatarUrl?: string
   equipment: Partial<Record<GearSlot, string>>
 }
@@ -82,7 +83,7 @@ export interface Monster {
 
 export interface UIState {
   username: string | null
-  activePanel: 'tower' | 'party' | 'gear' | 'forge' | 'settings' | 'shop'
+  activePanel: 'tower' | 'party' | 'gear' | 'forge' | 'settings' | 'shop' | 'brixa'
   floor: number
   autoPlay: boolean
   gold: number
@@ -94,12 +95,13 @@ export interface GameState {
   inventory: { gear: Gear[]; gems: Gem[]; materials: LootMaterial[]; potions: { revive: number } }
   recipes: Recipe[]
   shop: { items: Array<{ id: string; kind: 'gear' | 'gem' | 'potion' | 'material'; price: number; payload: any }> }
-  tower: { monsters: Monster[]; battleLog: BattleEvent[]; turn: number; inBattle: boolean }
+  tower: { monsters: Monster[]; battleLog: BattleEvent[]; turn: number; inBattle: boolean; analytics: { totalDamageDealt: number; turnsThisFight: number; lastFightStartMs: number | null; floorsCleared: number; dpsAvg: number } }
   initialize: () => void
   setActivePanel: (p: UIState['activePanel']) => void
   setUsername: (name: string) => void
   toggleAutoPlay: () => void
   uploadAvatar: (heroId: string, url: string) => void
+  setRow: (heroId: string, row: 'Front' | 'Back') => void
   equipGear: (heroId: string, gearId: string) => void
   socketGem: (gearId: string, gemId: string, socketIndex: number) => void
   unsocketGem: (gearId: string, socketIndex: number) => void
