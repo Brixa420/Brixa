@@ -132,6 +132,7 @@ export const useGameStore = create<GameState>()(devtools((set, get) => ({
   recipes: [],
   shop: { items: [] },
   tower: { monsters: [], battleLog: [], turn: 1, inBattle: false, analytics: { totalDamageDealt: 0, turnsThisFight: 0, lastFightStartMs: null, floorsCleared: 0, dpsAvg: 0 } },
+  premium: { ownedPerks: [], lootBoostPercent: 0 },
 
   initialize: () => set(produce<GameState>(state => {
     if (state.recipes.length === 0) state.recipes = generateInitialRecipes()
@@ -296,7 +297,7 @@ export const useGameStore = create<GameState>()(devtools((set, get) => ({
   generateLoot: (isBoss) => set(produce<GameState>(state => {
     const gold = 10 + Math.floor(Math.random()*15) + (isBoss?50:0)
     state.ui.gold += gold
-    const dropChanceBoost = 0 // will be affected by world events later
+    const dropChanceBoost = (state.premium?.lootBoostPercent ?? 0) / 100
     if (Math.random() < 0.7 + dropChanceBoost) {
       const rarityRoll = Math.random()
       const rarity: Rarity = rarityRoll>0.98?'Mythic':rarityRoll>0.9?'Legendary':rarityRoll>0.7?'Epic':rarityRoll>0.4?'Rare':'Common'
@@ -310,6 +311,10 @@ export const useGameStore = create<GameState>()(devtools((set, get) => ({
         state.inventory.gems.push({ id: uuid(), name: `${rarity} ${type} Gem`, type, rarity, value: rarityToValue[rarity], icon: `/placeholder/gem-${type.toLowerCase()}.svg` })
       }
     }
+  })),
+  grantPerk: (perkId) => set(produce<GameState>(state => {
+    if (!state.premium.ownedPerks.includes(perkId)) state.premium.ownedPerks.push(perkId)
+    if (perkId === 'loot_boost_10') state.premium.lootBoostPercent = Math.min(100, state.premium.lootBoostPercent + 10)
   })),
 
   craftRecipe: (recipeId) => set(produce<GameState>(state => {

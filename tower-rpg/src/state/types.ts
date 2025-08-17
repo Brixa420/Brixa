@@ -83,7 +83,7 @@ export interface Monster {
 
 export interface UIState {
   username: string | null
-  activePanel: 'tower' | 'party' | 'gear' | 'forge' | 'settings' | 'shop' | 'brixa'
+  activePanel: 'tower' | 'party' | 'gear' | 'forge' | 'settings' | 'shop' | 'brixa' | 'premium'
   floor: number
   autoPlay: boolean
   gold: number
@@ -96,6 +96,7 @@ export interface GameState {
   recipes: Recipe[]
   shop: { items: Array<{ id: string; kind: 'gear' | 'gem' | 'potion' | 'material'; price: number; payload: any }> }
   tower: { monsters: Monster[]; battleLog: BattleEvent[]; turn: number; inBattle: boolean; analytics: { totalDamageDealt: number; turnsThisFight: number; lastFightStartMs: number | null; floorsCleared: number; dpsAvg: number } }
+  premium: { ownedPerks: string[]; lootBoostPercent: number }
   initialize: () => void
   setActivePanel: (p: UIState['activePanel']) => void
   setUsername: (name: string) => void
@@ -112,6 +113,7 @@ export interface GameState {
   craftRecipe: (recipeId: string) => void
   rerollShop: () => void
   buyShopItem: (shopItemId: string) => void
+  grantPerk: (perkId: string) => void
 }
 
 export const rarityValue: Record<Rarity, number> = {
