@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { produce } from 'immer'
 import { v4 as uuid } from 'uuid'
-import type { BattleEvent, ClassName, GameState, Gear, Gem, Monster, Rarity, Recipe, Stats, UIState, gearSlots, rarityValue } from './types'
+import type { BattleEvent, ClassName, GameState, Gear, Gem, Monster, Rarity, Recipe, Stats, UIState } from './types'
 import { rarityValue as rarityToValue } from './types'
 
 const baseStatsByClass: Record<ClassName, Stats> = {
@@ -113,17 +113,17 @@ function generateInitialRecipes(): Recipe[] {
   const results: Recipe[] = []
   for (let i=0;i<30;i++) {
     const rarity = i === 0 ? 'Mythic' : rarities[Math.min(rarities.length-1, Math.floor(Math.random()*4)+1)]
-    const outType = Math.random()<0.5 ? 'gear' : 'gem'
+    const outType: 'gear' | 'gem' = Math.random()<0.5 ? 'gear' : 'gem'
     const id = uuid()
     const matId = `mat-${(i%10)+1}`
     const inputs = [{ materialId: matId, qty: 2 + (rarities.indexOf(rarity)) }]
-    const output = outType === 'gear' ? { type: 'gear', payload: { slot: ['Sword','Head','Chest','Greaves','Boots','Amulet','Ring','Shield'][i%8], rarity } } : { type: 'gem', payload: { type: ['Power','Defense','Vitality','Crit','Stun','Haste','Magic'][i%7], rarity } }
+    const output = outType === 'gear' ? { type: 'gear' as const, payload: { slot: ['Sword','Head','Chest','Greaves','Boots','Amulet','Ring','Shield'][i%8], rarity } } : { type: 'gem' as const, payload: { type: ['Power','Defense','Vitality','Crit','Stun','Haste','Magic'][i%7], rarity } }
     results.push({ id, name: `${rarity} ${outType==='gear'?'Gear':'Gem'} Recipe ${i+1}`, rarity, inputs, output })
   }
   return results
 }
 
-function emptyStats(): Stats { return { power:0, defense:0, vitality:0, critRate:0, critDamage:0, haste:0, magic:0, stunChance:0 } }
+//
 
 export const useGameStore = create<GameState>()(devtools((set, get) => ({
   ui: { username: null, activePanel: 'party', floor: 1, autoPlay: true, gold: 0 } as UIState,
@@ -140,21 +140,22 @@ export const useGameStore = create<GameState>()(devtools((set, get) => ({
     }
     if (!state.ui.username) {
       // default onboarding party
-      state.heroes = new Array(4).fill(0).map((_,i) => ({
-        id: uuid(), name: i===0?'Luna':'Hero '+(i+1), classPrimary: i===0?'Mage':'Warrior', classSecondary: i===0?'Artificer':'Ranger', level: 1, experience: 0, stats: baseStats(i===0?'Mage':'Warrior', i===0?'Artificer':'Ranger'), equipment: {}
-      }))
+      state.heroes = new Array(4).fill(0).map((_,i) => {
+        const stats = baseStats(i===0?'Mage':'Warrior', i===0?'Artificer':'Ranger')
+        return { id: uuid(), name: i===0?'Luna':'Hero '+(i+1), classPrimary: i===0?'Mage':'Warrior', classSecondary: i===0?'Artificer':'Ranger', level: 1, experience: 0, stats, currentHp: stats.vitality, equipment: {} }
+      })
       // Luna's Moonstone Amulet pre-equipped via virtual bonus handled in computeHeroStats
     }
     // seed some starter gear and gems with sockets
     for (const slot of ['Sword','Head','Chest','Greaves','Boots','Amulet','Ring','Shield'] as const) {
       const rarity: Rarity = slot==='Sword' ? 'Rare' : 'Common'
-      const gear: Gear = { id: uuid(), name: `${rarity} ${slot}`, slot, rarity, base: rarityToValue[rarity], icon: `/placeholder/gear-${slot.toLowerCase()}.png`, sockets: new Array(socketsForRarity(rarity)).fill(0).map(()=>({id:null})), socketedGems: [] }
+      const gear: Gear = { id: uuid(), name: `${rarity} ${slot}`, slot, rarity, base: rarityToValue[rarity], icon: `/placeholder/gear-${slot.toLowerCase()}.svg`, sockets: new Array(socketsForRarity(rarity)).fill(0).map(()=>({id:null})), socketedGems: [] }
       state.inventory.gear.push(gear)
     }
     const starterGems: Array<Pick<Gem,'name'|'type'|'rarity'|'value'|'icon'>> = [
-      { name: 'Power Shard', type: 'Power', rarity: 'Rare', value: rarityToValue['Rare'], icon: '/placeholder/gem-power.png' },
-      { name: 'Crit Crystal', type: 'Crit', rarity: 'Rare', value: rarityToValue['Rare'], icon: '/placeholder/gem-crit.png' },
-      { name: 'Stun Prism', type: 'Stun', rarity: 'Rare', value: rarityToValue['Rare'], icon: '/placeholder/gem-stun.png' },
+      { name: 'Power Shard', type: 'Power', rarity: 'Rare', value: rarityToValue['Rare'], icon: '/placeholder/gem-power.svg' },
+      { name: 'Crit Crystal', type: 'Crit', rarity: 'Rare', value: rarityToValue['Rare'], icon: '/placeholder/gem-crit.svg' },
+      { name: 'Stun Prism', type: 'Stun', rarity: 'Rare', value: rarityToValue['Rare'], icon: '/placeholder/gem-stun.svg' },
     ]
     for (const g of starterGems) state.inventory.gems.push({ id: uuid(), ...g })
     // initial shop
@@ -217,6 +218,7 @@ export const useGameStore = create<GameState>()(devtools((set, get) => ({
     // party attacks
     let totalPartyDamage = 0
     for (const hero of state.heroes) {
+      if ((hero.currentHp ?? hero.stats.vitality) <= 0) { continue }
       const s = computeHeroStats(hero, state)
       let dmg = Math.max(1, s.power + Math.floor(s.magic/2) - Math.floor(monster.stats.defense/3))
       const crit = Math.random()*100 < s.critRate
@@ -239,11 +241,33 @@ export const useGameStore = create<GameState>()(devtools((set, get) => ({
       // monster turn (if not stunned by any hero this turn)
       const stunned = events.some(e=>e.text.includes('stuns'))
       if (!stunned) {
-        const target = state.heroes[Math.floor(Math.random()*state.heroes.length)]
-        const dmg = Math.max(1, monster.stats.power - 5)
-        events.push({ id: uuid(), turn, text: `${monster.name} strikes ${target.name} for ${dmg}` })
+        const alive = state.heroes.filter(h => (h.currentHp ?? h.stats.vitality) > 0)
+        if (alive.length > 0) {
+          const target = alive[Math.floor(Math.random()*alive.length)]
+          const dmg = Math.max(1, monster.stats.power - 5)
+          target.currentHp = Math.max(0, (target.currentHp ?? target.stats.vitality) - dmg)
+          events.push({ id: uuid(), turn, text: `${monster.name} strikes ${target.name} for ${dmg}` })
+          if ((target.currentHp ?? 0) <= 0) {
+            if (state.inventory.potions.revive > 0) {
+              state.inventory.potions.revive -= 1
+              target.currentHp = target.stats.vitality
+              events.push({ id: uuid(), turn, text: `A Revive Potion is consumed! ${target.name} returns to full health!` })
+            } else {
+              events.push({ id: uuid(), turn, text: `${target.name} is down!` })
+            }
+          }
+        }
       }
-      state.tower.turn += 1
+      // Check party wipe
+      const anyAlive = state.heroes.some(h => (h.currentHp ?? h.stats.vitality) > 0)
+      if (!anyAlive) {
+        events.push({ id: uuid(), turn, text: `The party is wiped out... They retreat to Floor 1 with all gear.` })
+        state.tower.inBattle = false
+        state.ui.floor = 1
+        for (const h of state.heroes) h.currentHp = h.stats.vitality
+      } else {
+        state.tower.turn += 1
+      }
     }
     state.tower.battleLog.push(...events)
   })),
@@ -260,11 +284,11 @@ export const useGameStore = create<GameState>()(devtools((set, get) => ({
       // gear or gem
       if (Math.random()<0.5) {
         const slot = ['Sword','Head','Chest','Greaves','Boots','Amulet','Ring','Shield'][Math.floor(Math.random()*8)] as Gear['slot']
-        state.inventory.gear.push({ id: uuid(), name: `${rarity} ${slot}`, slot, rarity, base: rarityToValue[rarity], icon: `/placeholder/gear-${slot.toLowerCase()}.png`, sockets: new Array(Math.min(4, Math.max(0, Math.floor(rarityToValue[rarity]/25)))).fill(0).map(()=>({id:null})), socketedGems: [] })
+        state.inventory.gear.push({ id: uuid(), name: `${rarity} ${slot}`, slot, rarity, base: rarityToValue[rarity], icon: `/placeholder/gear-${slot.toLowerCase()}.svg`, sockets: new Array(Math.min(4, Math.max(0, Math.floor(rarityToValue[rarity]/25)))).fill(0).map(()=>({id:null})), socketedGems: [] })
       } else {
         const types: Gem['type'][] = ['Power','Defense','Vitality','Crit','Stun','Haste','Magic']
         const type = types[Math.floor(Math.random()*types.length)]
-        state.inventory.gems.push({ id: uuid(), name: `${rarity} ${type} Gem`, type, rarity, value: rarityToValue[rarity], icon: `/placeholder/gem-${type.toLowerCase()}.png` })
+        state.inventory.gems.push({ id: uuid(), name: `${rarity} ${type} Gem`, type, rarity, value: rarityToValue[rarity], icon: `/placeholder/gem-${type.toLowerCase()}.svg` })
       }
     }
   })),
@@ -281,11 +305,11 @@ export const useGameStore = create<GameState>()(devtools((set, get) => ({
     if (recipe.output.type==='gear') {
       const slot = recipe.output.payload.slot
       const rarity = recipe.output.payload.rarity as Rarity
-      state.inventory.gear.push({ id: uuid(), name: `${rarity} ${slot}`, slot, rarity, base: rarityToValue[rarity], icon: `/placeholder/gear-${slot.toLowerCase()}.png`, sockets: new Array(Math.min(4, Math.max(0, Math.floor(rarityToValue[rarity]/25)))).fill(0).map(()=>({id:null})), socketedGems: [] })
+      state.inventory.gear.push({ id: uuid(), name: `${rarity} ${slot}`, slot, rarity, base: rarityToValue[rarity], icon: `/placeholder/gear-${slot.toLowerCase()}.svg`, sockets: new Array(Math.min(4, Math.max(0, Math.floor(rarityToValue[rarity]/25)))).fill(0).map(()=>({id:null})), socketedGems: [] })
     } else if (recipe.output.type==='gem') {
       const type = recipe.output.payload.type as Gem['type']
       const rarity = recipe.output.payload.rarity as Rarity
-      state.inventory.gems.push({ id: uuid(), name: `${rarity} ${type} Gem`, type, rarity, value: rarityToValue[rarity], icon: `/placeholder/gem-${type.toLowerCase()}.png` })
+      state.inventory.gems.push({ id: uuid(), name: `${rarity} ${type} Gem`, type, rarity, value: rarityToValue[rarity], icon: `/placeholder/gem-${type.toLowerCase()}.svg` })
     } else if (recipe.output.type==='potion') {
       state.inventory.potions.revive += 1
     }
@@ -299,13 +323,13 @@ export const useGameStore = create<GameState>()(devtools((set, get) => ({
       if (kind==='gear') {
         const rarity: Rarity = roll>0.98?'Mythic':roll>0.92?'Legendary':roll>0.78?'Epic':roll>0.55?'Rare':'Common'
         const slot = ['Sword','Head','Chest','Greaves','Boots','Amulet','Ring','Shield'][Math.floor(Math.random()*8)]
-        const payload = { id: uuid(), name: `${rarity} ${slot}`, slot, rarity, base: rarityToValue[rarity], icon: `/placeholder/gear-${slot.toLowerCase()}.png`, sockets: new Array(Math.min(4, Math.max(0, Math.floor(rarityToValue[rarity]/25)))).fill(0).map(()=>({id:null})), socketedGems: [] }
+        const payload = { id: uuid(), name: `${rarity} ${slot}`, slot, rarity, base: rarityToValue[rarity], icon: `/placeholder/gear-${slot.toLowerCase()}.svg`, sockets: new Array(Math.min(4, Math.max(0, Math.floor(rarityToValue[rarity]/25)))).fill(0).map(()=>({id:null})), socketedGems: [] }
         items.push({ id: uuid(), kind, price: 20 + rarityToValue[rarity]*3, payload })
       } else if (kind==='gem') {
         const types: Gem['type'][] = ['Power','Defense','Vitality','Crit','Stun','Haste','Magic']
         const type = types[Math.floor(Math.random()*types.length)]
         const rarity: Rarity = roll>0.95?'Legendary':roll>0.8?'Epic':roll>0.5?'Rare':'Common'
-        const payload = { id: uuid(), name: `${rarity} ${type} Gem`, type, rarity, value: rarityToValue[rarity], icon: `/placeholder/gem-${type.toLowerCase()}.png` }
+        const payload = { id: uuid(), name: `${rarity} ${type} Gem`, type, rarity, value: rarityToValue[rarity], icon: `/placeholder/gem-${type.toLowerCase()}.svg` }
         items.push({ id: uuid(), kind, price: 10 + rarityToValue[rarity]*2, payload })
       } else if (kind==='material') {
         const id = `mat-${1+Math.floor(Math.random()*12)}`

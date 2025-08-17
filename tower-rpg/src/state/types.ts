@@ -46,6 +46,7 @@ export interface Hero {
   level: number
   experience: number
   stats: Stats
+  currentHp?: number
   avatarUrl?: string
   equipment: Partial<Record<GearSlot, string>>
 }
