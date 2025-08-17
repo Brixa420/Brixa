@@ -1,0 +1,64 @@
+version: "3.9"
+services:
+  bitcoind:
+    image: ruimarinho/bitcoin-core:latest
+    container_name: brixa-bitcoind
+    command: >-
+      -regtest=1 -server=1 -txindex=1 -rpcallowip=0.0.0.0/0 -rpcuser=user -rpcpassword=pass
+      -zmqpubrawtx=tcp://0.0.0.0:28332 -zmqpubhashblock=tcp://0.0.0.0:28333
+      -fallbackfee=0.0002
+    ports:
+      - "18444:18444"
+      - "18443:18443"
+      - "28332:28332"
+      - "28333:28333"
+    volumes:
+      - bitcoind-data:/home/bitcoin/.bitcoin
+
+  lnd:
+    image: lightninglabs/lnd:latest
+    container_name: brixa-lnd
+    depends_on: [bitcoind]
+    command: >-
+      --bitcoin.active --bitcoin.regtest --bitcoin.node=bitcoind
+      --bitcoind.rpchost=bitcoind --bitcoind.rpcuser=user --bitcoind.rpcpass=pass
+      --bitcoind.zmqpubrawblock=tcp://bitcoind:28333 --bitcoind.zmqpubrawtx=tcp://bitcoind:28332
+      --rpclisten=0.0.0.0:10009 --restlisten=0.0.0.0:8080 --listen=0.0.0.0:9735
+    ports:
+      - "9735:9735"
+      - "10009:10009"
+      - "8080:8080"
+    volumes:
+      - lnd-data:/root/.lnd
+
+  ai:
+    image: python:3.11-slim
+    container_name: brixa-ai
+    working_dir: /app
+    volumes:
+      - ./ai:/app
+    command: sh -c "pip install --no-cache-dir -r requirements.txt && uvicorn app:app --host 0.0.0.0 --port 8090"
+    ports:
+      - "8090:8090"
+    environment:
+      - BITCOIN_RPC_URL=http://user:pass@bitcoind:18443
+      - LND_REST_URL=http://lnd:8080
+
+  bridge:
+    image: node:20
+    container_name: brixa-bridge
+    working_dir: /app
+    volumes:
+      - ./bridge:/app
+    command: sh -c "npm install && npm run dev"
+    ports:
+      - "8088:8088"
+    environment:
+      - BITCOIN_RPC_URL=http://user:pass@bitcoind:18443
+      - LND_REST_URL=http://lnd:8080
+      - AI_URL=http://ai:8090
+    depends_on: [bitcoind, lnd, ai]
+
+volumes:
+  bitcoind-data: {}
+  lnd-data: {}
